@@ -62,7 +62,7 @@ def get_data(p, num_points=100):
 
 st.set_page_config(page_title="Delta Function Analysis", layout="centered")
 
-st.title("Interactive Delta Function")
+st.title("Function Delta(p,\sigma) from Minkowski Conjecture on Critical Lattices")
 st.markdown(r"Visualization of $\Delta(p, \sigma)$ with dynamic scaling.")
 
 # The Slider
