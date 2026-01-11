@@ -1,0 +1,449 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Wolfram 14.2' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       154,          7]
+NotebookDataLength[     17857,        439]
+NotebookOptionsPosition[     17372,        422]
+NotebookOutlinePosition[     17767,        438]
+CellTagsIndexPosition[     17724,        435]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+
+Cell[CellGroupData[{
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"(*", 
+   RowBox[{
+    RowBox[{
+     RowBox[{"--", 
+      RowBox[{"-", "1."}]}], " ", "Helper", " ", 
+     RowBox[{"Functions", "--"}]}], "-"}], "*)"}], 
+  RowBox[{
+   RowBox[{
+    RowBox[{
+     RowBox[{"sigmaP", "[", "p_", "]"}], ":=", 
+     RowBox[{
+      RowBox[{"(", 
+       RowBox[{
+        RowBox[{"2", "^", "p"}], "-", "1"}], ")"}], "^", 
+      RowBox[{"(", 
+       RowBox[{"1", "/", "p"}], ")"}]}]}], ";"}], "\n", "\[IndentingNewLine]",
+    "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{
+     RowBox[{"getData", "[", "p_", "]"}], ":=", 
+     RowBox[{"Module", "[", 
+      RowBox[{
+       RowBox[{"{", 
+        RowBox[{
+        "limit", ",", "sigmas", ",", "vals", ",", "tp", ",", "yMin", ",", 
+         "yMax", ",", "range", ",", "pad"}], "}"}], ",", 
+       RowBox[{
+        RowBox[{"limit", "=", 
+         RowBox[{"sigmaP", "[", "p", "]"}]}], ";", "\[IndentingNewLine]", 
+        RowBox[{"(*", 
+         RowBox[{"1.", " ", "Find", " ", "t_p", " ", 
+          RowBox[{"(", 
+           RowBox[{
+            RowBox[{"value", " ", "at", " ", "sigma"}], "=", "1"}], ")"}]}], 
+         "*)"}], 
+        RowBox[{"tp", "=", 
+         RowBox[{"t", "/.", " ", 
+          RowBox[{"FindRoot", "[", 
+           RowBox[{
+            RowBox[{
+             RowBox[{"2", " ", 
+              RowBox[{
+               RowBox[{"(", 
+                RowBox[{"1", "-", "t"}], ")"}], "^", "p"}]}], "-", 
+             RowBox[{"(", 
+              RowBox[{"1", "+", 
+               RowBox[{"t", "^", "p"}]}], ")"}]}], ",", 
+            RowBox[{"{", 
+             RowBox[{"t", ",", "0.5"}], "}"}]}], "]"}]}]}], ";", 
+        "\[IndentingNewLine]", 
+        RowBox[{"(*", 
+         RowBox[{
+         "2.", " ", "Create", " ", "a", " ", "grid", " ", "of", " ", "Sigma", 
+          " ", "values"}], "*)"}], 
+        RowBox[{"sigmas", "=", 
+         RowBox[{"N", "[", 
+          RowBox[{"Subdivide", "[", 
+           RowBox[{"1", ",", "limit", ",", "60"}], "]"}], "]"}]}], ";", 
+        "\[IndentingNewLine]", 
+        RowBox[{"(*", 
+         RowBox[{
+         "3.", " ", "Solve", " ", "for", " ", "Delta", " ", "at", " ", "each",
+           " ", "Sigma"}], "*)"}], 
+        RowBox[{"vals", "=", 
+         RowBox[{"Table", "[", 
+          RowBox[{
+           RowBox[{"Module", "[", 
+            RowBox[{
+             RowBox[{"{", 
+              RowBox[{
+               RowBox[{"s", "=", "sigma"}], ",", "tauVal", ",", "termTau", ",",
+                "termSigma", ",", "A", ",", "B"}], "}"}], ",", 
+             RowBox[{
+              RowBox[{"If", "[", 
+               RowBox[{
+                RowBox[{"s", "==", "1."}], ",", 
+                RowBox[{"tauVal", "=", "tp"}], ",", 
+                RowBox[{"If", "[", 
+                 RowBox[{
+                  RowBox[{
+                   RowBox[{"Abs", "[", 
+                    RowBox[{"s", "-", "limit"}], "]"}], "<", 
+                   RowBox[{"10", "^", 
+                    RowBox[{"-", "5"}]}]}], ",", 
+                  RowBox[{"tauVal", "=", "0."}], ",", 
+                  RowBox[{"Quiet", "[", 
+                   RowBox[{"tauVal", "=", 
+                    RowBox[{"tau", "/.", " ", 
+                    RowBox[{"FindRoot", "[", 
+                    RowBox[{
+                    RowBox[{
+                    RowBox[{"termTau", "=", 
+                    RowBox[{
+                    RowBox[{"(", 
+                    RowBox[{"1", "+", 
+                    RowBox[{"tau", "^", "p"}]}], ")"}], "^", 
+                    RowBox[{"(", 
+                    RowBox[{
+                    RowBox[{"-", "1"}], "/", "p"}], ")"}]}]}], ";", 
+                    "\[IndentingNewLine]", 
+                    RowBox[{"termSigma", "=", 
+                    RowBox[{
+                    RowBox[{"(", 
+                    RowBox[{"1", "+", 
+                    RowBox[{"s", "^", "p"}]}], ")"}], "^", 
+                    RowBox[{"(", 
+                    RowBox[{
+                    RowBox[{"-", "1"}], "/", "p"}], ")"}]}]}], ";", 
+                    "\[IndentingNewLine]", 
+                    RowBox[{"A", "=", 
+                    RowBox[{"termTau", "-", "termSigma"}]}], ";", 
+                    "\[IndentingNewLine]", 
+                    RowBox[{"B", "=", 
+                    RowBox[{
+                    RowBox[{"tau", "*", "termTau"}], "+", 
+                    RowBox[{"s", "*", "termSigma"}]}]}], ";", 
+                    "\[IndentingNewLine]", 
+                    RowBox[{
+                    RowBox[{
+                    RowBox[{"Abs", "[", "A", "]"}], "^", "p"}], "+", 
+                    RowBox[{
+                    RowBox[{"Abs", "[", "B", "]"}], "^", "p"}], "-", "1"}]}], 
+                    ",", 
+                    RowBox[{"{", 
+                    RowBox[{"tau", ",", "0.1"}], "}"}]}], "]"}]}]}], "]"}]}], 
+                 "]"}]}], "]"}], ";", "\[IndentingNewLine]", 
+              RowBox[{"termTau", "=", 
+               RowBox[{
+                RowBox[{"(", 
+                 RowBox[{"1", "+", 
+                  RowBox[{"tauVal", "^", "p"}]}], ")"}], "^", 
+                RowBox[{"(", 
+                 RowBox[{
+                  RowBox[{"-", "1"}], "/", "p"}], ")"}]}]}], ";", 
+              "\[IndentingNewLine]", 
+              RowBox[{"termSigma", "=", 
+               RowBox[{
+                RowBox[{"(", 
+                 RowBox[{"1", "+", 
+                  RowBox[{"s", "^", "p"}]}], ")"}], "^", 
+                RowBox[{"(", 
+                 RowBox[{
+                  RowBox[{"-", "1"}], "/", "p"}], ")"}]}]}], ";", 
+              "\[IndentingNewLine]", 
+              RowBox[{
+               RowBox[{"(", 
+                RowBox[{"tauVal", "+", "s"}], ")"}], "*", "termTau", "*", 
+               "termSigma"}]}]}], "]"}], ",", 
+           RowBox[{"{", 
+            RowBox[{"sigma", ",", "sigmas"}], "}"}]}], "]"}]}], ";", 
+        "\[IndentingNewLine]", "\[IndentingNewLine]", 
+        RowBox[{"(*", 
+         RowBox[{
+          RowBox[{"4.", " ", "Determine", " ", "Y"}], "-", 
+          RowBox[{"Plot", " ", "Range", " ", 
+           RowBox[{"(", 
+            RowBox[{"Dynamic", " ", "Zoom"}], ")"}]}]}], "*)"}], 
+        RowBox[{"yMin", "=", 
+         RowBox[{"Min", "[", "vals", "]"}]}], ";", "\[IndentingNewLine]", 
+        RowBox[{"yMax", "=", 
+         RowBox[{"Max", "[", "vals", "]"}]}], ";", "\[IndentingNewLine]", 
+        RowBox[{"range", "=", 
+         RowBox[{"yMax", "-", "yMin"}]}], ";", "\[IndentingNewLine]", 
+        RowBox[{"pad", "=", 
+         RowBox[{"Max", "[", 
+          RowBox[{
+           RowBox[{"range", "*", "0.2"}], ",", "0.0005"}], "]"}]}], ";", 
+        "\[IndentingNewLine]", 
+        RowBox[{"(*", 
+         RowBox[{
+          RowBox[{"Return", ":", 
+           RowBox[{"Interpolation", " ", "Function"}]}], ",", 
+          RowBox[{"Y", "-", "min"}], ",", 
+          RowBox[{"Y", "-", "max"}], ",", 
+          RowBox[{"current", " ", "limit"}]}], "*)"}], 
+        RowBox[{"{", 
+         RowBox[{
+          RowBox[{"Interpolation", "[", 
+           RowBox[{"Transpose", "[", 
+            RowBox[{"{", 
+             RowBox[{"sigmas", ",", "vals"}], "}"}], "]"}], "]"}], ",", 
+          RowBox[{"yMin", "-", "pad"}], ",", 
+          RowBox[{"yMax", "+", "pad"}], ",", "limit"}], "}"}]}]}], "]"}]}], 
+    ";"}], "\n", "\[IndentingNewLine]", 
+   RowBox[{"(*", 
+    RowBox[{
+     RowBox[{
+      RowBox[{"--", 
+       RowBox[{"-", "2."}]}], " ", "The", " ", "Interactive", " ", 
+      RowBox[{"Manipulate", "--"}]}], "-"}], "*)"}], "\[IndentingNewLine]", 
+   RowBox[{"Manipulate", "[", 
+    RowBox[{
+     RowBox[{"Module", "[", 
+      RowBox[{
+       RowBox[{"{", 
+        RowBox[{
+        "func", ",", "yMin", ",", "yMax", ",", "currentLimit", ",", "data", ",",
+          "maxSigmaPossible"}], "}"}], ",", 
+       RowBox[{
+        RowBox[{"data", "=", 
+         RowBox[{"getData", "[", "p", "]"}]}], ";", "\[IndentingNewLine]", 
+        RowBox[{"func", "=", 
+         RowBox[{"data", "[", 
+          RowBox[{"[", "1", "]"}], "]"}]}], ";", "\[IndentingNewLine]", 
+        RowBox[{"yMin", "=", 
+         RowBox[{"data", "[", 
+          RowBox[{"[", "2", "]"}], "]"}]}], ";", "\[IndentingNewLine]", 
+        RowBox[{"yMax", "=", 
+         RowBox[{"data", "[", 
+          RowBox[{"[", "3", "]"}], "]"}]}], ";", "\[IndentingNewLine]", 
+        RowBox[{"currentLimit", "=", 
+         RowBox[{"data", "[", 
+          RowBox[{"[", "4", "]"}], "]"}]}], ";", "\[IndentingNewLine]", 
+        RowBox[{"(*", 
+         RowBox[{
+          RowBox[{
+          "Calculate", " ", "max", " ", "possible", " ", "sigma", " ", "for", 
+           " ", "p"}], "=", 
+          RowBox[{
+          "15", " ", "to", " ", "fix", " ", "the", " ", "frame", " ", 
+           "width"}]}], "*)"}], 
+        RowBox[{"maxSigmaPossible", "=", 
+         RowBox[{"sigmaP", "[", "15", "]"}]}], ";", 
+        RowBox[{"(*", 
+         RowBox[{"approx", " ", "1.987"}], "*)"}], 
+        RowBox[{"Plot", "[", 
+         RowBox[{
+          RowBox[{"func", "[", "s", "]"}], ",", 
+          RowBox[{"{", 
+           RowBox[{"s", ",", "1", ",", "currentLimit"}], "}"}], ",", 
+          RowBox[{"(*", 
+           RowBox[{
+            RowBox[{"FIX", ":", 
+             RowBox[{"X", "-", 
+              RowBox[{"axis", " ", "is", " ", "fixed", " ", 
+               RowBox[{"(", 
+                RowBox[{"0.9", " ", "to", " ", "2.15"}], ")"}]}]}]}], ",", 
+            RowBox[{"Y", "-", 
+             RowBox[{"axis", " ", "is", " ", "dynamic"}]}]}], "*)"}], 
+          RowBox[{"PlotRange", "->", 
+           RowBox[{"{", 
+            RowBox[{
+             RowBox[{"{", 
+              RowBox[{"0.9", ",", "2.15"}], "}"}], ",", 
+             RowBox[{"{", 
+              RowBox[{"yMin", ",", "yMax"}], "}"}]}], "}"}]}], ",", 
+          RowBox[{"PlotRangePadding", "->", "None"}], ",", 
+          RowBox[{"(*", "Styling", "*)"}], 
+          RowBox[{"PlotLabel", "->", 
+           RowBox[{"Style", "[", 
+            RowBox[{
+             RowBox[{"Row", "[", 
+              RowBox[{"{", 
+               RowBox[{"\"\<p = \>\"", ",", 
+                RowBox[{"NumberForm", "[", 
+                 RowBox[{"p", ",", 
+                  RowBox[{"{", 
+                   RowBox[{"6", ",", "5"}], "}"}]}], "]"}]}], "}"}], "]"}], ",",
+              "16", ",", 
+             RowBox[{"FontFamily", "->", "\"\<Times\>\""}]}], "]"}]}], ",", 
+          RowBox[{"AxesLabel", "->", 
+           RowBox[{"{", 
+            
+            RowBox[{"\"\<\[Sigma]\>\"", 
+             ",", "\"\<\[Delta](p, \[Sigma])\>\""}], "}"}]}], ",", 
+          RowBox[{"PlotStyle", "->", 
+           RowBox[{"{", 
+            RowBox[{
+             RowBox[{"Thickness", "[", "0.006", "]"}], ",", "Blue"}], "}"}]}],
+           ",", 
+          RowBox[{"GridLines", "->", "Automatic"}], ",", 
+          RowBox[{"GridLinesStyle", "->", 
+           RowBox[{"Directive", "[", 
+            RowBox[{"Gray", ",", "Dotted"}], "]"}]}], ",", 
+          RowBox[{"ImageSize", "->", "500"}], ",", 
+          RowBox[{"AspectRatio", "->", "0.7"}], ",", 
+          RowBox[{"Exclusions", "->", "None"}], ",", 
+          RowBox[{"(*", 
+           RowBox[{
+           "Draw", " ", "a", " ", "vertical", " ", "line", " ", "at", " ", 
+            "the", " ", "end", " ", "of", " ", "the", " ", "domain", " ", 
+            "to", " ", "visualize", " ", "growth"}], "*)"}], 
+          RowBox[{"Epilog", "->", 
+           RowBox[{"{", 
+            RowBox[{"Red", ",", "Dashed", ",", 
+             RowBox[{"Line", "[", 
+              RowBox[{"{", 
+               RowBox[{
+                RowBox[{"{", 
+                 RowBox[{"currentLimit", ",", "yMin"}], "}"}], ",", 
+                RowBox[{"{", 
+                 RowBox[{"currentLimit", ",", "yMax"}], "}"}]}], "}"}], "]"}],
+              ",", 
+             RowBox[{"Text", "[", 
+              RowBox[{
+               RowBox[{"Style", "[", 
+                
+                RowBox[{"\"\<\\!\\(\\*SubscriptBox[\\(\[Sigma]\\), \
+\\(p\\)]\\)\>\"", ",", "12", ",", "Red"}], "]"}], ",", 
+               RowBox[{"{", 
+                RowBox[{"currentLimit", ",", 
+                 RowBox[{"yMin", "+", 
+                  RowBox[{
+                   RowBox[{"(", 
+                    RowBox[{"yMax", "-", "yMin"}], ")"}], "*", "0.05"}]}]}], 
+                "}"}], ",", 
+               RowBox[{"{", 
+                RowBox[{
+                 RowBox[{"-", "1.5"}], ",", "0"}], "}"}]}], "]"}]}], 
+            "}"}]}]}], "]"}]}]}], "]"}], ",", 
+     RowBox[{"{", 
+      RowBox[{
+       RowBox[{"{", 
+        RowBox[{"p", ",", "2.571728", ",", "\"\<Parameter p\>\""}], "}"}], ",",
+        "1.01", ",", "15", ",", 
+       RowBox[{"Appearance", "->", "\"\<Labeled\>\""}]}], "}"}], ",", 
+     RowBox[{"SynchronousUpdating", "->", "True"}], ",", 
+     RowBox[{"TrackedSymbols", ":>", 
+      RowBox[{"{", "p", "}"}]}]}], "]"}]}]}]], "Input",
+ CellChangeTimes->{{3.977119980486421*^9, 3.977119981203203*^9}, {
+   3.977121576451981*^9, 3.977121577318741*^9}, {3.977135627590724*^9, 
+   3.9771356438753357`*^9}, {3.977135682983693*^9, 3.977135694030447*^9}, {
+   3.977135738741535*^9, 3.97713575863034*^9}, 3.9771358269919643`*^9, {
+   3.977135859968012*^9, 3.977135863544969*^9}},
+ CellLabel->"In[52]:=",ExpressionUUID->"3c159fb0-6629-4a1c-bf82-97a105950372"],
+
+Cell[BoxData[
+ TagBox[
+  StyleBox[
+   DynamicModuleBox[{$CellContext`p$$ = 2.571728, Typeset`show$$ = True, 
+    Typeset`bookmarkList$$ = {}, Typeset`bookmarkMode$$ = "Menu", 
+    Typeset`animator$$, Typeset`animvar$$ = 1, Typeset`name$$ = 
+    "\"untitled\"", Typeset`specs$$ = {{{
+       Hold[$CellContext`p$$], 2.571728, "Parameter p"}, 1.01, 15, 
+      ControlType -> Manipulator}}, Typeset`size$$ = {
+    500., {178.93305664032232`, 184.66499023407232`}}, Typeset`update$$ = 0, 
+    Typeset`initDone$$, Typeset`skipInitDone$$ = True, 
+    Typeset`keyframeActionsQ$$ = False, Typeset`keyframeList$$ = {}}, 
+    DynamicBox[Manipulate`ManipulateBoxes[
+     1, StandardForm, "Variables" :> {$CellContext`p$$ = 2.571728}, 
+      "ControllerVariables" :> {}, 
+      "OtherVariables" :> {
+       Typeset`show$$, Typeset`bookmarkList$$, Typeset`bookmarkMode$$, 
+        Typeset`animator$$, Typeset`animvar$$, Typeset`name$$, 
+        Typeset`specs$$, Typeset`size$$, Typeset`update$$, Typeset`initDone$$,
+         Typeset`skipInitDone$$, Typeset`keyframeActionsQ$$, 
+        Typeset`keyframeList$$}, "Body" :> 
+      Module[{$CellContext`func$, $CellContext`yMin$, $CellContext`yMax$, \
+$CellContext`currentLimit$, $CellContext`data$, \
+$CellContext`maxSigmaPossible$}, $CellContext`data$ = \
+$CellContext`getData[$CellContext`p$$]; $CellContext`func$ = 
+         Part[$CellContext`data$, 1]; $CellContext`yMin$ = 
+         Part[$CellContext`data$, 2]; $CellContext`yMax$ = 
+         Part[$CellContext`data$, 3]; $CellContext`currentLimit$ = 
+         Part[$CellContext`data$, 
+           4]; $CellContext`maxSigmaPossible$ = $CellContext`sigmaP[15]; 
+        Plot[
+          $CellContext`func$[$CellContext`s], {$CellContext`s, 
+           1, $CellContext`currentLimit$}, 
+          PlotRange -> {{0.9, 
+            2.15}, {$CellContext`yMin$, $CellContext`yMax$}}, 
+          PlotRangePadding -> None, PlotLabel -> Style[
+            Row[{"p = ", 
+              NumberForm[$CellContext`p$$, {6, 5}]}], 16, FontFamily -> 
+            "Times"], AxesLabel -> {"\[Sigma]", "\[Delta](p, \[Sigma])"}, 
+          PlotStyle -> {
+            Thickness[0.006], Blue}, GridLines -> Automatic, GridLinesStyle -> 
+          Directive[Gray, Dotted], ImageSize -> 500, AspectRatio -> 0.7, 
+          Exclusions -> None, Epilog -> {Red, Dashed, 
+            
+            Line[{{$CellContext`currentLimit$, $CellContext`yMin$}, \
+{$CellContext`currentLimit$, $CellContext`yMax$}}], 
+            Text[
+             Style[
+             "\!\(\*SubscriptBox[\(\[Sigma]\), \(p\)]\)", 12, 
+              Red], {$CellContext`currentLimit$, $CellContext`yMin$ + \
+($CellContext`yMax$ - $CellContext`yMin$) 0.05}, {-1.5, 0}]}]], 
+      "Specifications" :> {{{$CellContext`p$$, 2.571728, "Parameter p"}, 1.01,
+          15, Appearance -> "Labeled"}}, 
+      "Options" :> {
+       SynchronousUpdating -> True, TrackedSymbols :> {$CellContext`p$$}}, 
+      "DefaultOptions" :> {}],
+     ImageSizeCache->{
+      549.0999999999999, {226.60348205536138`, 232.33541564911138`}},
+     SingleEvaluation->True],
+    Deinitialization:>None,
+    DynamicModuleValues:>{},
+    SynchronousInitialization->True,
+    UndoTrackedVariables:>{Typeset`show$$, Typeset`bookmarkMode$$},
+    UnsavedVariables:>{Typeset`initDone$$},
+    UntrackedVariables:>{Typeset`size$$}], "Manipulate",
+   Deployed->True,
+   StripOnInput->False],
+  Manipulate`InterpretManipulate[1]]], "Output",
+ CellChangeTimes->{{3.977135849212439*^9, 3.977135863855942*^9}},
+ CellLabel->"Out[54]=",ExpressionUUID->"ad289c0c-2fe4-40e8-9df0-7f0881383589"]
+}, Open  ]]
+},
+WindowSize->{808, 873},
+WindowMargins->{{4, Automatic}, {Automatic, 4}},
+FrontEndVersion->"14.2 for Mac OS X ARM (64-bit) (December 26, 2024)",
+StyleDefinitions->"Default.nb",
+ExpressionUUID->"e6c6b76f-8b82-4b15-b540-bfcb3909be14"
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[CellGroupData[{
+Cell[576, 22, 13202, 326, 968, "Input",ExpressionUUID->"3c159fb0-6629-4a1c-bf82-97a105950372"],
+Cell[13781, 350, 3575, 69, 494, "Output",ExpressionUUID->"ad289c0c-2fe4-40e8-9df0-7f0881383589"]
+}, Open  ]]
+}
+]
+*)
+
+(* End of internal cache information *)
+
