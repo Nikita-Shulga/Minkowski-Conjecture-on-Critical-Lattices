@@ -66,7 +66,7 @@ st.title("Interactive Delta Function")
 st.markdown(r"Visualization of $\Delta(p, \sigma)$ with dynamic scaling.")
 
 # The Slider
-p = st.slider("Parameter p", min_value=1.01, max_value=5.0, value=2.5717, step=0.0001, format="%.4f")
+p = st.slider("Parameter p", min_value=1.01, max_value=15.0, value=2.5717, step=0.0001, format="%.4f")
 
 # Calculations
 sigmas, deltas, current_limit = get_data(p)
@@ -75,7 +75,7 @@ sigmas, deltas, current_limit = get_data(p)
 fig, ax = plt.figure(figsize=(8, 6)), plt.gca()
 
 # Fixed X-Axis (Growth visualization)
-max_limit = (2**5 - 1)**(1/5) # p=5 limit
+max_limit = (2**15 - 1)**(1/15) # p=15 limit
 ax.set_xlim(0.95, max_limit + 0.1)
 
 # Dynamic Y-Axis
