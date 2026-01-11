@@ -3,3 +3,7 @@ This project is about computer-assisted proof of the Minkowski conjecture on cri
 
 
 https://minkowski-conjecture-on-critical-lattices.streamlit.app/
+
+
+
+<iframe width='800' height='400' src='https://www.wolframcloud.com/obj/nikitashulga/Published/MinkowskiConjectureDelta' frameborder='0'></iframe>
