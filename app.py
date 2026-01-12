@@ -62,8 +62,8 @@ def get_data(p, num_points=100):
 
 st.set_page_config(page_title="Delta Function Analysis", layout="centered")
 
-st.title("Function Delta(p,\sigma) from Minkowski Conjecture on Critical Lattices")
-st.markdown(r"Visualization of $\Delta(p, \sigma)$ with dynamic scaling.")
+st.title("Function $\Delta(p, \sigma)$ from Minkowski Conjecture on Critical Lattices")
+
 
 # The Slider
 p = st.slider("Parameter p", min_value=1.01, max_value=7.0, value=2.5717, step=0.0001, format="%.4f")
