@@ -1,12 +1,11 @@
 # Minkowski-Conjecture-on-Critical-Lattices
 This project is about computer-assisted proof of the Minkowski conjecture on critical lattices.
 
-
-https://minkowski-conjecture-on-critical-lattices.streamlit.app/
-
-
+The following two links should contain the interactive plot of the function $\Delta(p,\sigma)$ as a function of $\sigma$. The value of $p$ is fixed and can be changed using a slider.
 
 https://www.wolframcloud.com/obj/nikitashulga/Published/MinkowskiConjectureDelta
+https://minkowski-conjecture-on-critical-lattices.streamlit.app/
+
 
 
 The following picture is a collection of curves $\Delta(p,\sigma)$ for sampled values of $p\in (1,20]$ as functions of $\sigma$. 
