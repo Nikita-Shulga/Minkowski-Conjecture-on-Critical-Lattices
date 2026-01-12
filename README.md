@@ -9,6 +9,6 @@ https://minkowski-conjecture-on-critical-lattices.streamlit.app/
 https://www.wolframcloud.com/obj/nikitashulga/Published/MinkowskiConjectureDelta
 
 
-
+The following picture is a collection of curves $\Delta(p,\sigma)$ for sampled values of $p\in (1,20]$ as functions of $\sigma$. 
 
 <img width="856" height="710" alt="BehaviourDelta" src="https://github.com/user-attachments/assets/9d1532a0-cd75-40a9-8f4e-4bef1c06db54" />
