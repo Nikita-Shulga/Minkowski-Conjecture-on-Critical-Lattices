@@ -220,137 +220,363 @@ end
 
 
 
-"""
-    calculate_h_interval(p_int, s_int, t_int)
 
-Calculates the interval for h = sum(h_1 to h_7).
-Uses factorization of singular t^(p-2) terms to prevent interval explosion near 0.
+
 """
-function calculate_h_interval(
+    t_pow_a_log_t_safe(t_int, a_int)
+
+Calculates t^a * ln(t) rigorously handling the singularity at t=0.
+- If a > 0: Limits to 0 at t=0.
+- If a <= 0: Behaves according to standard interval arithmetic (unbounded at 0).
+"""
+function t_pow_a_log_t_safe(t_int::Interval{<:Real}, a_int::Interval{<:Real})
+    # 1. Purely in the safe region (away from 0)
+    if inf(t_int) > 0
+        return (t_int^a_int) * log(t_int)
+    end
+
+    # 2. Check Exponent for Limit existence
+    # The limit of t^a * ln(t) as t->0 is 0 ONLY if a > 0.
+    if inf(a_int) <= 0
+        # If exponent can be 0 or negative, term is unbounded. 
+        # Return standard evaluation to capture the Infinity.
+        return (t_int^a_int) * log(t_int)
+    end
+
+    # 3. Handle Neighborhood of 0 (Monotonic Decreasing Region)
+    # Turning point is exp(-1/a). Conservatively check if t is small.
+    safe_monotonic_bound = 1 // 10
+    
+    if sup(t_int) < safe_monotonic_bound
+        # RIGOROUS ANALYTIC EXTENSION:
+        # Domain: [0, t_hi] -> Range: [t_hi^a * ln(t_hi), 0]
+        
+        t_hi_iv = interval(sup(t_int))
+        val_at_end = (t_hi_iv^a_int) * log(t_hi_iv)
+        
+        # Return the interval [min_val, 0.0]
+        return interval(inf(val_at_end), 0)
+    else
+        return (t_int^a_int) * log(t_int)
+    end
+end
+
+
+"""
+    calculate_hp_derivative_interval(p_int, s_int, t_int)
+
+Calculates h'_p = d(sum h_i)/dp using total derivatives w.r.t p.
+"""
+function calculate_hp_derivative_interval(
     p_int::Interval{<:Real},
     s_int::Interval{<:Real},
     t_int::Interval{<:Real}
 )
-    # Ensure strict positivity for logs/powers
-
+    # We use t_int directly.
     
-    # --- 1. Basic Terms ---
+    # --- 0. Basic Constants & Terms ---
     one_over_p = interval(1) / p_int
     p_minus_1 = p_int - interval(1)
     p_minus_2 = p_int - interval(2)
     
+    ln_s = log(s_int)
+    # ln_t = log(t_int)  <-- Implicitly handled in specific terms via function call
+    
     val_1_sp = interval(1) + s_int^p_int
     val_1_tp = interval(1) + t_int^p_int
     
-    # C1, C2
     C1 = val_1_sp^(-one_over_p)
     C2 = val_1_tp^(-one_over_p)
     
+    K_sigma = val_1_sp^(-interval(1) - one_over_p)
+    K_tau = val_1_tp^(-interval(1) - one_over_p)
+    
     # A, B
     A = C2 - C1
-   
+    B = t_int * C2 + s_int * C1 # Used t_int
     
-    B = t_int * C2 + s_int * C1
-
+    # Intervals A and B are used directly.
     
-    # K_sigma, K_tau
-    K_sigma = val_1_sp^(-interval(1) - one_over_p)
-    K_tau   = val_1_tp^(-interval(1) - one_over_p)
-    
-    # Powers
     t_pow_pm1 = t_int^p_minus_1
-    t_pow_pm2 = t_int^p_minus_2 # This is the singular term t^(p-2)
-    
+    t_pow_pm2 = t_int^p_minus_2
     s_pow_pm1 = s_int^p_minus_1
     s_pow_pm2 = s_int^p_minus_2
     
     A_pow_pm1 = A^p_minus_1
     A_pow_pm2 = A^p_minus_2
-    
     B_pow_pm1 = B^p_minus_1
     B_pow_pm2 = B^p_minus_2
     
-    # D1, D2
     D1 = interval(1) - s_int * t_pow_pm1
     D2 = interval(1) - t_int * s_pow_pm1
     
-    # H1, H2
     H1 = B_pow_pm1 + s_pow_pm1 * A_pow_pm1
     H2 = B_pow_pm1 - t_pow_pm1 * A_pow_pm1
     
-    # --- 2. Component Partial Derivatives ---
-    dA_dsigma = s_pow_pm1 * K_sigma
-    dA_dtau = -t_pow_pm1 * K_tau
-    dB_dsigma = K_sigma
-    dB_dtau = K_tau
-    
-    # --- 3. H-Partial Derivatives ---
-    # dH1/dsigma
-    term_H1_s_1 = B_pow_pm2 * dB_dsigma
-    term_H1_s_2 = s_pow_pm2 * A_pow_pm1
-    term_H1_s_3 = s_pow_pm1 * A_pow_pm2 * dA_dsigma
-    dH1_dsigma = p_minus_1 * (term_H1_s_1 + term_H1_s_2 + term_H1_s_3)
-    
-    # dH2/dsigma
-    term_H2_s_1 = B_pow_pm2 * dB_dsigma
-    term_H2_s_2 = t_pow_pm1 * A_pow_pm2 * dA_dsigma
-    dH2_dsigma = p_minus_1 * (term_H2_s_1 - term_H2_s_2)
-    
-    # dH1/dtau (All regular)
-    term_H1_t_1 = B_pow_pm2 * dB_dtau
-    term_H1_t_2 = s_pow_pm1 * A_pow_pm2 * dA_dtau
-    dH1_dtau = p_minus_1 * (term_H1_t_1 + term_H1_t_2)
-    
-    # dH2/dtau (Has singularity)
-    # The term with t^(p-2) is: - (p-1) * t^(p-2) * A^(p-1)
-    # The other terms are regular.
-    term_H2_t_regular_1 = B_pow_pm2 * dB_dtau
-    term_H2_t_regular_3 = t_pow_pm1 * A_pow_pm2 * dA_dtau
-    # Regular part of dH2/dtau
-    dH2_dtau_regular = p_minus_1 * (term_H2_t_regular_1 - term_H2_t_regular_3)
-    
-    # --- 4. T (dtau/dsigma) ---
+    # Check H2 safety for division
     if in_interval(0,H2)== true 
-        println("  Warning: H_2 interval contains zero. Skipping h calculation.")
+        println("  Warning: H_2 interval contains zero.")
         return emptyinterval(Float64)
     end
-    T = - (K_sigma / K_tau) * (H1 / H2)
-
     
-    # --- 5. h_i Calculation (Grouped) ---
+    # --- 1. Basic p-Derivatives (Partial) ---
     
-    # Regular Terms
-    h1 = -s_pow_pm1 * K_sigma * D1 * H1 - t_pow_pm1 * K_sigma * D2 * H1
-    h2 = -t_pow_pm1 * C1 * H1
-    h3 = p_minus_1 * t_int * s_pow_pm2 * C2 * H2
-    # h4 is singular, moved below
-    h5 = s_pow_pm1 * C2 * H2 * T
-    h6 = C1 * D1 * dH1_dsigma - C2 * D2 * dH2_dsigma
+    # (C1)_p
+    term_C1_bracket = (log(val_1_sp) / (p_int^interval(2))) - ( (s_int^p_int * ln_s) / (p_int * val_1_sp) )
+    C1_p = C1 * term_C1_bracket
     
-    # h7 split:
-    # h7 = (C1*D1*dH1/dt - C2*D2*dH2/dt) * T
-    # h7_regular part using dH2_dtau_regular
-    h7_regular = (C1 * D1 * dH1_dtau - C2 * D2 * dH2_dtau_regular) * T
+    # (C2)_p_part
+    # Safe handling of t^p * ln(t)
+    term_tp_ln_t = t_pow_a_log_t_safe(t_int, p_int)
+    term_C2_bracket = (log(val_1_tp) / (p_int^interval(2))) - ( term_tp_ln_t / (p_int * val_1_tp) )
+    C2_p_part = C2 * term_C2_bracket
     
-    # Singular Terms Grouping:
-    # From h4: - (p-1) * sigma * t^(p-2) * C1 * H1 * T
-    # From h7: - C2 * D2 * [ - (p-1) * t^(p-2) * A^(p-1) ] * T
-    #        = + (p-1) * t^(p-2) * C2 * D2 * A^(p-1) * T
+    # (K_sigma)_p
+    term_Ks_bracket = (log(val_1_sp) / (p_int^interval(2))) - ( (interval(1) + one_over_p) * (s_int^p_int * ln_s) / val_1_sp )
+    Ks_p = K_sigma * term_Ks_bracket
     
-    # Combined Coefficient for t^(p-2):
-    # T * (p-1) * [ -sigma * C1 * H1 + C2 * D2 * A^(p-1) ]
+    # (K_tau)_p_part
+    # Safe handling of t^p * ln(t)
+    term_Kt_bracket = (log(val_1_tp) / (p_int^interval(2))) - ( (interval(1) + one_over_p) * term_tp_ln_t / val_1_tp )
+    Kt_p_part = K_tau * term_Kt_bracket
     
-    singular_bracket = -s_int * C1 * H1 + C2 * D2 * A_pow_pm1
-    singular_coeff = T * p_minus_1 * singular_bracket
+    # --- 2. Calculate Tau_p ---
     
-    h_singular = singular_coeff * t_pow_pm2
+    # A_p_part, B_p_part
+    Ap_part = C2_p_part - C1_p
+    Bp_part = t_int * C2_p_part + s_int * C1_p # Used t_int
     
-    # --- 6. Total Sum ---
-    h_total = h1 + h2 + h3 + h5 + h6 + h7_regular + h_singular
+    # Phi_p
+    # Using A directly (assumes A > 0, which is true for disjoint sigma/tau)
+    term_Phi_p_A = (A^p_int) * ( log(A) + p_int * (Ap_part / A) )
+    term_Phi_p_B = (B^p_int) * ( log(B) + p_int * (Bp_part / B) )
+    Phi_p = term_Phi_p_A + term_Phi_p_B
     
-    return h_total
+    # Phi_tau
+    Phi_tau = p_int * K_tau * ( B_pow_pm1 - A_pow_pm1 * t_pow_pm1 )
+    
+    # tau_p
+    if 0.0 in Phi_tau
+        return emptyinterval(Float64)
+    end
+    tau_p = - Phi_p / Phi_tau
+    
+    # --- 3. Total p-Derivatives ---
+    
+    # (C2)_p = (C2)_p_part - t^(p-1) K_tau tau_p
+    C2_p = C2_p_part - t_pow_pm1 * K_tau * tau_p
+    
+    # (K_tau)_p = (K_tau)_p_part - (p+1) * (t^(p-1)/(1+t^p)) * K_tau * tau_p
+    Kt_p = Kt_p_part - (p_int + interval(1)) * ( (t_pow_pm1 / val_1_tp) * K_tau * tau_p )
+    
+    # A_p = Ap_part - t^(p-1) K_tau tau_p
+    A_p = Ap_part - t_pow_pm1 * K_tau * tau_p
+    
+    # B_p = Bp_part + K_tau tau_p
+    B_p = Bp_part + K_tau * tau_p
+    
+    # --- 4. Power Derivatives ---
+    
+    # (sigma^(p-1))_p
+    s_pow_pm1_p = s_pow_pm1 * ln_s
+    # (sigma^(p-2))_p
+    s_pow_pm2_p = s_pow_pm2 * ln_s
+    
+    # (tau^(p-1))_p = t^(p-1) (ln t + (p-1) tau_p / t)
+    # Decomposed to: t^(p-1) ln t + (p-1) * tau_p * t^(p-2)
+    # Safe handling of t^(p-1) * ln(t)
+    t_pow_pm1_log_t = t_pow_a_log_t_safe(t_int, p_minus_1)
+    t_pow_pm1_p = t_pow_pm1_log_t + p_minus_1 * tau_p * t_pow_pm2
+    
+    # (tau^(p-2))_p = t^(p-2) (ln t + (p-2) tau_p / t)
+    # Decomposed to: t^(p-2) ln t + (p-2) * tau_p * t^(p-3)
+    # Safe handling of t^(p-2) * ln(t) (Handles p-2 < 0 correctly)
+    t_pow_pm2_log_t = t_pow_a_log_t_safe(t_int, p_minus_2)
+    t_pow_pm3 = t_int^(p_int - interval(3))
+    t_pow_pm2_p = t_pow_pm2_log_t + p_minus_2 * tau_p * t_pow_pm3
+    
+    # (B^(p-1))_p = B^(p-1) ln B + (p-1) B^(p-2) B_p
+    B_pow_pm1_p = B_pow_pm1 * log(B) + p_minus_1 * B_pow_pm2 * B_p
+    
+    # (A^(p-1))_p = A^(p-1) ln A + (p-1) A^(p-2) A_p
+    A_pow_pm1_p = A_pow_pm1 * log(A) + p_minus_1 * A_pow_pm2 * A_p
+    
+    # (B^(p-2))_p = B^(p-2) ln B + (p-2) B^(p-3) B_p
+    B_pow_pm3 = B^(p_int - interval(3))
+    B_pow_pm2_p = B_pow_pm2 * log(B) + p_minus_2 * B_pow_pm3 * B_p
+    
+    # (A^(p-2))_p = A^(p-2) ln A + (p-2) A^(p-3) A_p
+    A_pow_pm3 = A^(p_int - interval(3))
+    A_pow_pm2_p = A_pow_pm2 * log(A) + p_minus_2 * A_pow_pm3 * A_p
+    
+    # --- 5. H Derivatives ---
+    
+    # (H1)_p
+    H1_p = B_pow_pm1_p + s_pow_pm1_p * A_pow_pm1 + s_pow_pm1 * A_pow_pm1_p
+    
+    # (H2)_p
+    H2_p = B_pow_pm1_p - t_pow_pm1_p * A_pow_pm1 - t_pow_pm1 * A_pow_pm1_p
+    
+    # --- 6. T_p ---
+    # S = K_sigma / K_tau
+    S = K_sigma / K_tau
+    S_p = (Ks_p * K_tau - K_sigma * Kt_p) / (K_tau^interval(2))
+    
+    # R = H1 / H2
+    R = H1 / H2
+    R_p = (H1_p * H2 - H1 * H2_p) / (H2^interval(2))
+    
+    # T = -S * R => T_p = - (S_p * R + S * R_p)
+    T = -S * R
+    T_p = - (S_p * R + S * R_p)
+    
+    # --- 7. Partial Derivatives Helper (S1, S2, S3, S4) and p-derivatives ---
+    
+    dB_dsigma = K_sigma
+    dB_dsigma_p = Ks_p  # (K_sigma)_p
+    
+    dA_dsigma = s_pow_pm1 * K_sigma
+    dA_dsigma_p = s_pow_pm1_p * K_sigma + s_pow_pm1 * Ks_p
+    
+    dB_dtau = K_tau
+    dB_dtau_p = Kt_p    # (K_tau)_p
+    
+    dA_dtau = -t_pow_pm1 * K_tau
+    dA_dtau_p = - (t_pow_pm1_p * K_tau + t_pow_pm1 * Kt_p)
+    
+    # S1
+    S1 = B_pow_pm2 * dB_dsigma + s_pow_pm2 * A_pow_pm1 + s_pow_pm1 * A_pow_pm2 * dA_dsigma
+    # (S1)_p
+    term_S1_p_1 = B_pow_pm2_p * dB_dsigma + B_pow_pm2 * dB_dsigma_p
+    term_S1_p_2 = s_pow_pm2_p * A_pow_pm1 + s_pow_pm2 * A_pow_pm1_p
+    term_S1_p_3 = s_pow_pm1_p * A_pow_pm2 * dA_dsigma + s_pow_pm1 * A_pow_pm2_p * dA_dsigma + s_pow_pm1 * A_pow_pm2 * dA_dsigma_p
+    S1_p = term_S1_p_1 + term_S1_p_2 + term_S1_p_3
+    
+    # S2
+    S2 = B_pow_pm2 * dB_dsigma - t_pow_pm1 * A_pow_pm2 * dA_dsigma
+    # (S2)_p
+    term_S2_p_1 = B_pow_pm2_p * dB_dsigma + B_pow_pm2 * dB_dsigma_p
+    term_S2_p_2 = t_pow_pm1_p * A_pow_pm2 * dA_dsigma + t_pow_pm1 * A_pow_pm2_p * dA_dsigma + t_pow_pm1 * A_pow_pm2 * dA_dsigma_p
+    S2_p = term_S2_p_1 - term_S2_p_2
+    
+    # S3
+    S3 = B_pow_pm2 * dB_dtau + s_pow_pm1 * A_pow_pm2 * dA_dtau
+    # (S3)_p
+    term_S3_p_1 = B_pow_pm2_p * dB_dtau + B_pow_pm2 * dB_dtau_p
+    term_S3_p_2 = s_pow_pm1_p * A_pow_pm2 * dA_dtau + s_pow_pm1 * A_pow_pm2_p * dA_dtau + s_pow_pm1 * A_pow_pm2 * dA_dtau_p
+    S3_p = term_S3_p_1 + term_S3_p_2
+    
+    # S4
+    S4 = B_pow_pm2 * dB_dtau - t_pow_pm2 * A_pow_pm1 - t_pow_pm1 * A_pow_pm2 * dA_dtau
+    # (S4)_p
+    term_S4_p_1 = B_pow_pm2_p * dB_dtau + B_pow_pm2 * dB_dtau_p
+    term_S4_p_2 = t_pow_pm2_p * A_pow_pm1 + t_pow_pm2 * A_pow_pm1_p
+    term_S4_p_3 = t_pow_pm1_p * A_pow_pm2 * dA_dtau + t_pow_pm1 * A_pow_pm2_p * dA_dtau + t_pow_pm1 * A_pow_pm2 * dA_dtau_p
+    S4_p = term_S4_p_1 - term_S4_p_2 - term_S4_p_3
+    
+    # H partials p-derivatives
+    H1_s = p_minus_1 * S1
+    H1_s_p = S1 + p_minus_1 * S1_p
+    
+    H2_s = p_minus_1 * S2
+    H2_s_p = S2 + p_minus_1 * S2_p
+    
+    H1_t = p_minus_1 * S3
+    H1_t_p = S3 + p_minus_1 * S3_p
+    
+    H2_t = p_minus_1 * S4
+    H2_t_p = S4 + p_minus_1 * S4_p
+    
+    # --- 8. Calculate (h_i)_p ---
+    
+    # h1 = -sigma^(p-1) K_sigma D1 H1 - tau^(p-1) K_sigma D2 H1
+    # D derivatives:
+    # (D1)_p = -sigma t^(p-1)_p
+    D1_p = -s_int * t_pow_pm1_p
+    
+    # (D2)_p = -(tau)_p sigma^(p-1) - tau (sigma^(p-1))_p
+    D2_p = -( tau_p * s_pow_pm1 + t_int * s_pow_pm1_p ) # Used t_int
+    
+    # U1 = s^(p-1) K_sigma D1 H1
+    U1 = s_pow_pm1 * K_sigma * D1 * H1
+    U1_p = s_pow_pm1_p * K_sigma * D1 * H1 +
+           s_pow_pm1 * Ks_p * D1 * H1 +
+           s_pow_pm1 * K_sigma * D1_p * H1 +
+           s_pow_pm1 * K_sigma * D1 * H1_p
+           
+    # U2 = t^(p-1) K_sigma D2 H1
+    U2 = t_pow_pm1 * K_sigma * D2 * H1
+    U2_p = t_pow_pm1_p * K_sigma * D2 * H1 +
+           t_pow_pm1 * Ks_p * D2 * H1 +
+           t_pow_pm1 * K_sigma * D2_p * H1 +
+           t_pow_pm1 * K_sigma * D2 * H1_p
+           
+    h1_p = - (U1_p + U2_p)
+    
+    # h2 = - t^(p-1) C1 H1
+    h2_p = - ( t_pow_pm1_p * C1 * H1 +
+               t_pow_pm1 * C1_p * H1 +
+               t_pow_pm1 * C1 * H1_p )
+               
+    # h3 = (p-1) tau sigma^(p-2) C2 H2
+    F = p_minus_1; G = t_int; H = s_pow_pm2; I = C2; J = H2
+    G_p = tau_p
+    
+    term_h3_1 = interval(1) * G * H * I * J
+    term_h3_2 = F * G_p * H * I * J
+    term_h3_3 = F * G * s_pow_pm2_p * I * J
+    term_h3_4 = F * G * H * C2_p * J
+    term_h3_5 = F * G * H * I * H2_p
+    
+    h3_p = term_h3_1 + term_h3_2 + term_h3_3 + term_h3_4 + term_h3_5
+    
+    # h4 = -(p-1) sigma tau^(p-2) C1 H1 T
+    F = p_minus_1; G = s_int; H = t_pow_pm2; I = C1; J = H1; Q = T
+    
+    term_h4_1 = interval(1) * G * H * I * J * Q
+    # G_p is 0
+    term_h4_3 = F * G * t_pow_pm2_p * I * J * Q
+    term_h4_4 = F * G * H * C1_p * J * Q
+    term_h4_5 = F * G * H * I * H1_p * Q
+    term_h4_6 = F * G * H * I * J * T_p
+    
+    h4_p = - (term_h4_1 + term_h4_3 + term_h4_4 + term_h4_5 + term_h4_6)
+    
+    # h5 = sigma^(p-1) C2 H2 T
+    R_val = s_pow_pm1; S_val = C2; U_val = H2; V_val = T
+    
+    term_h5_1 = s_pow_pm1_p * S_val * U_val * V_val
+    term_h5_2 = R_val * C2_p * U_val * V_val
+    term_h5_3 = R_val * S_val * H2_p * V_val
+    term_h5_4 = R_val * S_val * U_val * T_p
+    
+    h5_p = term_h5_1 + term_h5_2 + term_h5_3 + term_h5_4
+    
+    # h6 = C1 D1 H1_sigma - C2 D2 H2_sigma
+    E1_p = C1_p * D1 * H1_s +
+           C1 * D1_p * H1_s +
+           C1 * D1 * H1_s_p
+           
+    E2_p = C2_p * D2 * H2_s +
+           C2 * D2_p * H2_s +
+           C2 * D2 * H2_s_p
+           
+    h6_p = E1_p - E2_p
+    
+    # h7 = (C1 D1 H1_tau - C2 D2 H2_tau) * T
+    t1_p = C1_p * D1 * H1_t + C1 * D1_p * H1_t + C1 * D1 * H1_t_p
+    t2_p = C2_p * D2 * H2_t + C2 * D2_p * H2_t + C2 * D2 * H2_t_p
+    
+    E_val = C1 * D1 * H1_t - C2 * D2 * H2_t
+    E_p = t1_p - t2_p
+    
+    h7_p = E_p * T + E_val * T_p
+    
+    # --- 9. Final Sum ---
+    hp_total = h1_p + h2_p + h3_p + h4_p + h5_p + h6_p + h7_p
+    
+    return hp_total
 end
-
 
 
 """
@@ -414,12 +640,15 @@ end
 
 
 
+"""
+    check_p_s_rectangle(p_int, s_int, ...)
+"""
 function check_p_s_rectangle(
     p_int::Interval{<:Real},
     s_int::Interval{<:Real},
     t_up_val::Real,              
     target_precision::Real,      
-    h_threshold::Real,           
+    threshold::Real,           
     tau_subdivisions::Int,
     tau_subdivision_threshold::Real, 
     desc_prefix::String=""
@@ -428,22 +657,25 @@ function check_p_s_rectangle(
     tau_interval_rect = find_new_tau_range(p_int, s_int, t_up_val, target_precision, false)
     
     if isempty_interval(tau_interval_rect)
-        println("$(desc_prefix)!!! FAIL: Empty Tau for P=$p_int, S=$s_int")
-        return false
+            println("!!! FAIL: Empty Tau for P=$p_interval, S=$s_interval")
+            return false
     end
     
-    # 2. Standard Check (Always first)
-    h_res = calculate_h_interval(p_int, s_int, tau_interval_rect)
-    
-    # --- NEW: Check if h calculation was skipped due to H2 containing 0 ---
-    if isempty_interval(h_res)
-        println("$(desc_prefix)!!! RIGOR FAIL: h calculation skipped (H2 singularity) for P=$p_int, S=$s_int")
-        return false # This will trigger p_interval_failed = true in the main loop
+    # 2. Standard Check
+    deriv_res = calculate_hp_derivative_interval(p_int, s_int, tau_interval_rect)
+    # Catch the singularity from step 1
+    if isempty_interval(deriv_res)
+            println("!!! FAIL: Singularity detected in H2 for P=$p_interval, S=$s_interval")
+            return false
     end
-    
-    println("$(desc_prefix)  P=$(p_int) S=$(s_int) τ=$(tau_interval_rect) => h=$(h_res)")
-    
-    if sup(h_res) < h_threshold
+        
+    # PRINT RESULT BEFORE CHECKING
+    println("$(desc_prefix)  P=$(p_int) S=$(s_int) τ=$(tau_interval_rect) => h'_p=$(deriv_res)")
+
+
+
+    # CHECK: lower bound > threshold (strictly positive)
+    if inf(deriv_res) > threshold
         return true
     end
     
@@ -455,7 +687,7 @@ function check_p_s_rectangle(
         local tau_subs
         
         if is_zero_bound
-            println("$(desc_prefix)--- Check failed. Tau lower bound is 0. Subdividing into 2 parts... ---")
+            println("$(desc_prefix)--- Check failed. Tau lower bound is 0. Subdividing into 2 parts (isolating zero at 1e-9)... ---")
             split_point = 1 // 10^9
             tau_subs = [
                 interval(0, split_point),
@@ -467,52 +699,48 @@ function check_p_s_rectangle(
         end
         
         for (k, sub_tau) in enumerate(tau_subs)
-            h_sub = calculate_h_interval(p_int, s_int, sub_tau)
+            deriv_sub = calculate_hp_derivative_interval(p_int, s_int, sub_tau)
             
-            # --- NEW: Check sub-intervals for skipped h calculation ---
-            if isempty_interval(h_sub)
-                println("$(desc_prefix)      !!! RIGOR FAIL: h sub-calculation skipped (H2 singularity) for P=$p_int, S=$s_int")
-                return false
-            end
-
             sub_label = is_zero_bound ? "(Sub-Zero)" : "(Sub)"
-            println("$(desc_prefix)      $sub_label P=$p_int S=$s_int τ[$k]=$sub_tau => h=$h_sub")
+            println("$(desc_prefix)      $sub_label P=$p_int S=$s_int τ[$k]=$sub_tau => h'_p=$deriv_sub")
             
-            if !(sup(h_sub) < h_threshold)
+            if !(inf(deriv_sub) > threshold)
                 println("$(desc_prefix)      !!! SUB-FAIL: P=$p_int, S=$s_int, τ_sub=$sub_tau")
+                println("$(desc_prefix)          h'_p = $deriv_sub (Wanted lo > $threshold)")
                 return false
             end
         end
         return true
     else
         println("$(desc_prefix)!!! FAIL: P=$p_int, S=$s_int, τ=$tau_interval_rect")
+        println("$(desc_prefix)    h'_p = $deriv_res (Wanted lo > $threshold)")
         return false
     end
 end
 
 
-
-
 # --- Main Execution ---
 
-const p_start = 20052 // 10000
-const p_end = 203407 // 100000
-const p_step = 1 // 10000
+const p_start = 199954 // 100000
+const p_end = 2 // 1
+const p_step = 1 // 100000
 
-const sigma_lower_bound = 172 // 100
-const sigma_step = 1 // 10000
+const sigma_start_fixed = 1 // 1
+const sigma_end_fixed = 10016 // 10000
+const sigma_step = 1 // 100000
 
 
 const tp_guess = interval(0, 36//100) # Initial guess for t_p
 const target_precision = 1 // 10^9 # Iteration precision
-const h_threshold = - 1 // 10^9 # Inequality: h < -1e-9
+const deriv_threshold  =  1 // 10^9 # Inequality: h > 1e-9
 const tau_subdivisions = 40 #  Number of subdivisions for tau
 const tau_subdivision_threshold = 1 // 10^4 # Absolute width threshold
 
-println("Calculating bounds for h over new grid.")
+
+println("Calculating derivative bounds h'_p over new grid.")
 println("  p range: [$p_start, $p_end] (descending)")
-println("  σ range: [$sigma_lower_bound, σ_p] (descending)")
-println("  Inequality to check: h < $h_threshold")
+println("  σ range: [$sigma_start_fixed, $sigma_end_fixed] (descending)")
+println("  Inequality to check: h'_p > $deriv_threshold")
 println("="^40)
 
 start_time = time()
@@ -528,6 +756,13 @@ if last(p_values_asc) < p_hi_val
 end
 p_values_desc = reverse(p_values_asc)
 
+# Determine Sigma Range (descending)
+sigma_values_asc = collect(sigma_start_fixed:sigma_step:sigma_end_fixed)
+if last(sigma_values_asc) < sigma_end_fixed
+    push!(sigma_values_asc, sigma_end_fixed)
+end
+sigma_values_desc = reverse(sigma_values_asc)
+
 for i in 1:(length(p_values_desc) - 1)
     p_hi = interval(p_values_desc[i])
     p_lo = interval(p_values_desc[i+1])
@@ -542,25 +777,11 @@ for i in 1:(length(p_values_desc) - 1)
     end
     t_up_val = sup(tp_result)
     
-    # 2. Determine Sigma Range for this P
-    sigma_p_interval = (interval(2)^p_interval - interval(1))^(interval(1)/p_interval)
-    sigma_start = sup(sigma_p_interval)
-    
-    # Construct Sigma Grid (descending to 1.7281)
-    sigma_values_desc = Float64[]
-    let 
-        curr = sigma_start
-        while curr > sigma_lower_bound + 1 // 10^9
-            push!(sigma_values_desc, curr)
-            curr -= sigma_step
-        end
-        push!(sigma_values_desc, sigma_lower_bound)
-    end
+    # 2. Determine Sigma Range for this P (Not used dynamically here, fixed range used)
     
     println("\nP-Interval: ", p_interval)
-    println("  σ_p bound for this p: ", sigma_p_interval)
     println("-"^100)
-    println("  P-Rect             S-Rect             τ-sub-interval     h Bound")
+    println("  P-Rect             S-Rect              τ-sub-interval     h'_p Bound")
     println("-"^100)
 
     local p_interval_failed = false
@@ -568,20 +789,13 @@ for i in 1:(length(p_values_desc) - 1)
     # 3. Sigma Loop
     for j in 1:(length(sigma_values_desc) - 1)
         s_hi = sigma_values_desc[j]
-        if j == length(sigma_values_desc) - 1
-            # RIGOROUS: Use the exact Rational constant for the lower bound.
-            # IntervalArithmetic will round this down safely.
-            s_interval = interval(sigma_lower_bound, s_hi)
-        else
-            # STANDARD: Use the float grid points for intermediate steps
-            s_lo = sigma_values_desc[j+1]
-            s_interval = interval(s_lo, s_hi)
-        end
+        s_lo = sigma_values_desc[j+1]
+        s_interval = interval(s_lo, s_hi)
         
         # --- CHECK RECTANGLE ---
         passed = check_p_s_rectangle(
             p_interval, s_interval, t_up_val,
-            target_precision, h_threshold,
+            target_precision, deriv_threshold,
             tau_subdivisions, tau_subdivision_threshold
         )
         
@@ -601,7 +815,7 @@ end_time = time()
 println("="^40)
 println("Final Report on Inconclusive P-Intervals:")
 if isempty(failed_p_intervals)
-    println("All p-intervals verified h < -1e-9 successfully.")
+    println("All p-intervals verified h'_p > 1e-9 successfully.")
 else
     merged_failed = merge_intervals(failed_p_intervals)
     println("The following p-ranges failed the check:")

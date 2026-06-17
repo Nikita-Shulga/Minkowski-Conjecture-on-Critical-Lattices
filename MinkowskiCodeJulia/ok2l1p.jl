@@ -221,135 +221,141 @@ end
 
 
 """
-    calculate_h_interval(p_int, s_int, t_int)
+    calculate_l1_derivative_interval(p_int, s_int, t_int, tp_int)
 
-Calculates the interval for h = sum(h_1 to h_7).
-Uses factorization of singular t^(p-2) terms to prevent interval explosion near 0.
+Calculates the derivative (l^(1))'_p.
+Rigorous version:
+1. Uses t_pow_p_log_t_safe for the t=0 singularity.
+2. Direct calculation for A and B (assuming strictly separated tau and sigma).
 """
-function calculate_h_interval(
+function calculate_l1_derivative_interval(
     p_int::Interval{<:Real},
     s_int::Interval{<:Real},
-    t_int::Interval{<:Real}
+    t_int::Interval{<:Real},
+    tp_int::Interval{<:Real}
 )
-    # Ensure strict positivity for logs/powers
-
-    
-    # --- 1. Basic Terms ---
+    # --- 1. Common Helper Terms ---
     one_over_p = interval(1) / p_int
     p_minus_1 = p_int - interval(1)
-    p_minus_2 = p_int - interval(2)
+    
+    ln_s = log(s_int)
     
     val_1_sp = interval(1) + s_int^p_int
-    val_1_tp = interval(1) + t_int^p_int
+    val_1_tp = interval(1) + t_int^p_int 
     
     # C1, C2
     C1 = val_1_sp^(-one_over_p)
     C2 = val_1_tp^(-one_over_p)
     
     # A, B
+    # Analytically A > 0 because tau < sigma.
+    # We rely on the solver ensuring tau and sigma are distinct enough.
     A = C2 - C1
-   
-    
     B = t_int * C2 + s_int * C1
-
     
-    # K_sigma, K_tau
-    K_sigma = val_1_sp^(-interval(1) - one_over_p)
-    K_tau   = val_1_tp^(-interval(1) - one_over_p)
+    # K_tau
+    K_tau = val_1_tp^(-interval(1) - one_over_p)
     
-    # Powers
-    t_pow_pm1 = t_int^p_minus_1
-    t_pow_pm2 = t_int^p_minus_2 # This is the singular term t^(p-2)
+    t_pow_p = t_int^p_int
+    s_pow_p = s_int^p_int
     
-    s_pow_pm1 = s_int^p_minus_1
-    s_pow_pm2 = s_int^p_minus_2
+    # H2 = B^(p-1) - t^(p-1) * A^(p-1)
+    # Note: If A is accidentally non-positive due to float noise, A^(p-1) will error here.
+    H2 = (B^p_minus_1) - (t_int^p_minus_1) * (A^p_minus_1)
     
-    A_pow_pm1 = A^p_minus_1
-    A_pow_pm2 = A^p_minus_2
+    # --- 2. Calculate L_sigma, L_tau ---
     
-    B_pow_pm1 = B^p_minus_1
-    B_pow_pm2 = B^p_minus_2
+    L_sigma = log(val_1_sp) / (p_int^2) - (s_pow_p * ln_s) / (p_int * val_1_sp)
     
-    # D1, D2
-    D1 = interval(1) - s_int * t_pow_pm1
-    D2 = interval(1) - t_int * s_pow_pm1
+    # L_tau: RIGOROUS CALCULATION (Keep this one!)
+    # Handles the t=0 singularity via monotonicity
+    term_singularity = t_pow_p_log_t_safe(t_int, p_int)
+    L_tau = log(val_1_tp) / (p_int^2) - term_singularity / (p_int * val_1_tp)
     
-    # H1, H2
-    H1 = B_pow_pm1 + s_pow_pm1 * A_pow_pm1
-    H2 = B_pow_pm1 - t_pow_pm1 * A_pow_pm1
+    # --- 3. Calculate Partial derivatives of A and B wrt p ---
+    dA_dp = C2 * L_tau - C1 * L_sigma
+    dB_dp = t_int * C2 * L_tau + s_int * C1 * L_sigma
     
-    # --- 2. Component Partial Derivatives ---
-    dA_dsigma = s_pow_pm1 * K_sigma
-    dA_dtau = -t_pow_pm1 * K_tau
-    dB_dsigma = K_sigma
-    dB_dtau = K_tau
+    # --- 4. Calculate N_p ---
+    # N_p = A^p ln A + B^p ln B + ...
+    term_N1 = (A^p_int) * log(A)
+    term_N2 = (B^p_int) * log(B)
+    term_N3 = p_int * (A^p_minus_1) * dA_dp
+    term_N4 = p_int * (B^p_minus_1) * dB_dp
     
-    # --- 3. H-Partial Derivatives ---
-    # dH1/dsigma
-    term_H1_s_1 = B_pow_pm2 * dB_dsigma
-    term_H1_s_2 = s_pow_pm2 * A_pow_pm1
-    term_H1_s_3 = s_pow_pm1 * A_pow_pm2 * dA_dsigma
-    dH1_dsigma = p_minus_1 * (term_H1_s_1 + term_H1_s_2 + term_H1_s_3)
+    N_p = term_N1 + term_N2 + term_N3 + term_N4
     
-    # dH2/dsigma
-    term_H2_s_1 = B_pow_pm2 * dB_dsigma
-    term_H2_s_2 = t_pow_pm1 * A_pow_pm2 * dA_dsigma
-    dH2_dsigma = p_minus_1 * (term_H2_s_1 - term_H2_s_2)
+    # --- 5. Calculate T_p ---
     
-    # dH1/dtau (All regular)
-    term_H1_t_1 = B_pow_pm2 * dB_dtau
-    term_H1_t_2 = s_pow_pm1 * A_pow_pm2 * dA_dtau
-    dH1_dtau = p_minus_1 * (term_H1_t_1 + term_H1_t_2)
-    
-    # dH2/dtau (Has singularity)
-    # The term with t^(p-2) is: - (p-1) * t^(p-2) * A^(p-1)
-    # The other terms are regular.
-    term_H2_t_regular_1 = B_pow_pm2 * dB_dtau
-    term_H2_t_regular_3 = t_pow_pm1 * A_pow_pm2 * dA_dtau
-    # Regular part of dH2/dtau
-    dH2_dtau_regular = p_minus_1 * (term_H2_t_regular_1 - term_H2_t_regular_3)
-    
-    # --- 4. T (dtau/dsigma) ---
-    if in_interval(0,H2)== true 
-        println("  Warning: H_2 interval contains zero. Skipping h calculation.")
-        return emptyinterval(Float64)
+    if 0.0 in H2
+        return interval(-1e10, 1e10) # Division by zero fail-safe
     end
-    T = - (K_sigma / K_tau) * (H1 / H2)
-
     
-    # --- 5. h_i Calculation (Grouped) ---
+    T_p = - N_p / (p_int * K_tau * H2)
     
-    # Regular Terms
-    h1 = -s_pow_pm1 * K_sigma * D1 * H1 - t_pow_pm1 * K_sigma * D2 * H1
-    h2 = -t_pow_pm1 * C1 * H1
-    h3 = p_minus_1 * t_int * s_pow_pm2 * C2 * H2
-    # h4 is singular, moved below
-    h5 = s_pow_pm1 * C2 * H2 * T
-    h6 = C1 * D1 * dH1_dsigma - C2 * D2 * dH2_dsigma
+    # --- 6. Calculate dDelta(p, sigma) / dp ---
+    Delta_ps = (t_int + s_int) * C2 * C1
     
-    # h7 split:
-    # h7 = (C1*D1*dH1/dt - C2*D2*dH2/dt) * T
-    # h7_regular part using dH2_dtau_regular
-    h7_regular = (C1 * D1 * dH1_dtau - C2 * D2 * dH2_dtau_regular) * T
+    explicit_tau_term = (interval(1) / (s_int + t_int)) - ( (t_int^p_minus_1) / val_1_tp )
     
-    # Singular Terms Grouping:
-    # From h4: - (p-1) * sigma * t^(p-2) * C1 * H1 * T
-    # From h7: - C2 * D2 * [ - (p-1) * t^(p-2) * A^(p-1) ] * T
-    #        = + (p-1) * t^(p-2) * C2 * D2 * A^(p-1) * T
+    dDelta_ps_dp = Delta_ps * ( (L_sigma + L_tau) + explicit_tau_term * T_p )
     
-    # Combined Coefficient for t^(p-2):
-    # T * (p-1) * [ -sigma * C1 * H1 + C2 * D2 * A^(p-1) ]
+    # --- 7. Calculate dDelta(p, 1) / dp ---
+    term_4_pow = interval(4)^(-one_over_p)
+    term_tp_frac = (interval(1) + tp_int) / (interval(1) - tp_int)
+    Delta_p1 = term_4_pow * term_tp_frac
     
-    singular_bracket = -s_int * C1 * H1 + C2 * D2 * A_pow_pm1
-    singular_coeff = T * p_minus_1 * singular_bracket
+    # Calculate dt_p / dp
+    one_minus_tp = interval(1) - tp_int
     
-    h_singular = singular_coeff * t_pow_pm2
+    num_dtp_1 = interval(2) * (one_minus_tp^p_int) * log(one_minus_tp)
+    num_dtp_2 = (tp_int^p_int) * log(tp_int)
+    num_dtp = num_dtp_1 - num_dtp_2
     
-    # --- 6. Total Sum ---
-    h_total = h1 + h2 + h3 + h5 + h6 + h7_regular + h_singular
+    den_dtp_inner = interval(2) * (one_minus_tp^p_minus_1) + (tp_int^p_minus_1)
+    den_dtp = p_int * den_dtp_inner
     
-    return h_total
+    dtp_dp = num_dtp / den_dtp
+    
+    bracket_term_1 = log(interval(4)) / (p_int^2)
+    bracket_term_2 = (interval(2) / (interval(1) - tp_int^2)) * dtp_dp
+    
+    dDelta_p1_dp = Delta_p1 * (bracket_term_1 + bracket_term_2)
+    
+    # --- 8. Final Result ---
+    l1_prime_p = dDelta_ps_dp - dDelta_p1_dp
+    
+    return l1_prime_p
 end
+
+
+
+"""
+    t_pow_p_log_t_safe(t_int::Interval{Float64}, p_int::Interval{Float64})
+
+Calculates t^p * ln(t).
+1. Neighborhood of 0: If t is within [0, e^(-1/p)], the function is strictly decreasing.
+   We map [0, b] -> [b^p ln(b), 0].
+2. Safe Region: If t is away from 0, use standard arithmetic.
+"""
+function t_pow_p_log_t_safe(t_int::Interval{<:Real}, p_int::Interval{<:Real})
+    if inf(t_int) > 0.0
+        return (t_int^p_int) * log(t_int)
+    end
+
+    # Handle Neighborhood of 0
+    safe_monotonic_bound = 1 // 10
+    
+    if sup(t_int) < safe_monotonic_bound
+        # Domain: [0, t_hi] -> Range: [t_hi^p * ln(t_hi), 0]
+        t_hi_iv = interval(sup(t_int))
+        val_at_end = (t_hi_iv^p_int) * log(t_hi_iv)
+        return interval(inf(val_at_end), 0.0)
+    else
+        return (t_int^p_int) * log(t_int)
+    end
+end
+
 
 
 
@@ -414,114 +420,40 @@ end
 
 
 
-function check_p_s_rectangle(
-    p_int::Interval{<:Real},
-    s_int::Interval{<:Real},
-    t_up_val::Real,              
-    target_precision::Real,      
-    h_threshold::Real,           
-    tau_subdivisions::Int,
-    tau_subdivision_threshold::Real, 
-    desc_prefix::String=""
-)
-    # 1. Find Tau
-    tau_interval_rect = find_new_tau_range(p_int, s_int, t_up_val, target_precision, false)
-    
-    if isempty_interval(tau_interval_rect)
-        println("$(desc_prefix)!!! FAIL: Empty Tau for P=$p_int, S=$s_int")
-        return false
-    end
-    
-    # 2. Standard Check (Always first)
-    h_res = calculate_h_interval(p_int, s_int, tau_interval_rect)
-    
-    # --- NEW: Check if h calculation was skipped due to H2 containing 0 ---
-    if isempty_interval(h_res)
-        println("$(desc_prefix)!!! RIGOR FAIL: h calculation skipped (H2 singularity) for P=$p_int, S=$s_int")
-        return false # This will trigger p_interval_failed = true in the main loop
-    end
-    
-    println("$(desc_prefix)  P=$(p_int) S=$(s_int) τ=$(tau_interval_rect) => h=$(h_res)")
-    
-    if sup(h_res) < h_threshold
-        return true
-    end
-    
-    # 3. Subdivision Logic (Fallback)
-    is_zero_bound = (inf(tau_interval_rect) == 0.0)
-    is_wide = (sup(tau_interval_rect) - inf(tau_interval_rect)) > tau_subdivision_threshold
-    
-    if is_zero_bound || is_wide
-        local tau_subs
-        
-        if is_zero_bound
-            println("$(desc_prefix)--- Check failed. Tau lower bound is 0. Subdividing into 2 parts... ---")
-            split_point = 1 // 10^9
-            tau_subs = [
-                interval(0, split_point),
-                interval(split_point, sup(tau_interval_rect))
-            ]
-        else
-            println("$(desc_prefix)--- Check failed on full tau interval. Subdividing... ---")
-            tau_subs = subdivide_tau_interval(tau_interval_rect, tau_subdivisions)
-        end
-        
-        for (k, sub_tau) in enumerate(tau_subs)
-            h_sub = calculate_h_interval(p_int, s_int, sub_tau)
-            
-            # --- NEW: Check sub-intervals for skipped h calculation ---
-            if isempty_interval(h_sub)
-                println("$(desc_prefix)      !!! RIGOR FAIL: h sub-calculation skipped (H2 singularity) for P=$p_int, S=$s_int")
-                return false
-            end
-
-            sub_label = is_zero_bound ? "(Sub-Zero)" : "(Sub)"
-            println("$(desc_prefix)      $sub_label P=$p_int S=$s_int τ[$k]=$sub_tau => h=$h_sub")
-            
-            if !(sup(h_sub) < h_threshold)
-                println("$(desc_prefix)      !!! SUB-FAIL: P=$p_int, S=$s_int, τ_sub=$sub_tau")
-                return false
-            end
-        end
-        return true
-    else
-        println("$(desc_prefix)!!! FAIL: P=$p_int, S=$s_int, τ=$tau_interval_rect")
-        return false
-    end
-end
-
-
-
-
 # --- Main Execution ---
 
-const p_start = 20052 // 10000
-const p_end = 203407 // 100000
-const p_step = 1 // 10000
+# 1. Update Constants for New Region
+const p_start = 199954 // 100000
+const p_end = 2 // 1
+const p_step = 1 // 100000
 
 const sigma_lower_bound = 172 // 100
-const sigma_step = 1 // 10000
+const sigma_step = 1 // 1000000
 
 
 const tp_guess = interval(0, 36//100) # Initial guess for t_p
 const target_precision = 1 // 10^9 # Iteration precision
-const h_threshold = - 1 // 10^9 # Inequality: h < -1e-9
+const derivative_threshold = - 1 // 10^9 # Inequality: (l^1)'_p < -1e-9
 const tau_subdivisions = 40 #  Number of subdivisions for tau
 const tau_subdivision_threshold = 1 // 10^4 # Absolute width threshold
 
-println("Calculating bounds for h over new grid.")
+
+println("Calculating derivative bounds (l^(1))'_p over new grid.")
 println("  p range: [$p_start, $p_end] (descending)")
 println("  σ range: [$sigma_lower_bound, σ_p] (descending)")
-println("  Inequality to check: h < $h_threshold")
+println("  Step size: $p_step")
+println("  Inequality to check: (l^(1))'_p < $derivative_threshold")
 println("="^40)
 
 start_time = time()
 failed_p_intervals = Interval{Float64}[]
 
-# Determine p range (descending)
+# 2. Determine p range (descending)
 p_lo_val = min(p_start, p_end)
 p_hi_val = max(p_start, p_end)
 
+# Using a manual loop construction to avoid potential memory issues with 'collect' on very small steps
+# but keeping the logic consistent with previous versions.
 p_values_asc = collect(p_lo_val:p_step:p_hi_val)
 if last(p_values_asc) < p_hi_val
     push!(p_values_asc, p_hi_val)
@@ -543,14 +475,16 @@ for i in 1:(length(p_values_desc) - 1)
     t_up_val = sup(tp_result)
     
     # 2. Determine Sigma Range for this P
+    # σ_p = (2^p - 1)^(1/p)
     sigma_p_interval = (interval(2)^p_interval - interval(1))^(interval(1)/p_interval)
     sigma_start = sup(sigma_p_interval)
     
-    # Construct Sigma Grid (descending to 1.7281)
+    # Construct Sigma Grid
+    # Using explicit loop for small step handling
     sigma_values_desc = Float64[]
     let 
         curr = sigma_start
-        while curr > sigma_lower_bound + 1 // 10^9
+        while curr > sigma_lower_bound + 1e-12
             push!(sigma_values_desc, curr)
             curr -= sigma_step
         end
@@ -560,7 +494,7 @@ for i in 1:(length(p_values_desc) - 1)
     println("\nP-Interval: ", p_interval)
     println("  σ_p bound for this p: ", sigma_p_interval)
     println("-"^100)
-    println("  P-Rect             S-Rect             τ-sub-interval     h Bound")
+    println("  P-Rect             S-Rect             τ-sub-interval     (l^1)'_p Bound")
     println("-"^100)
 
     local p_interval_failed = false
@@ -568,25 +502,55 @@ for i in 1:(length(p_values_desc) - 1)
     # 3. Sigma Loop
     for j in 1:(length(sigma_values_desc) - 1)
         s_hi = sigma_values_desc[j]
-        if j == length(sigma_values_desc) - 1
-            # RIGOROUS: Use the exact Rational constant for the lower bound.
-            # IntervalArithmetic will round this down safely.
-            s_interval = interval(sigma_lower_bound, s_hi)
-        else
-            # STANDARD: Use the float grid points for intermediate steps
-            s_lo = sigma_values_desc[j+1]
-            s_interval = interval(s_lo, s_hi)
+        s_lo = sigma_values_desc[j+1]
+        s_interval = interval(s_lo, s_hi)
+        
+        # 4. Find Tau
+        tau_interval_rect = find_new_tau_range(p_interval, s_interval, t_up_val, target_precision, false)
+        
+        if isempty_interval(tau_interval_rect)
+            println("!!! FAIL: Empty Tau for P=$p_interval, S=$s_interval")
+            p_interval_failed = true
+            break 
         end
         
-        # --- CHECK RECTANGLE ---
-        passed = check_p_s_rectangle(
-            p_interval, s_interval, t_up_val,
-            target_precision, h_threshold,
-            tau_subdivisions, tau_subdivision_threshold
-        )
+        # 5. Check Inequality
+        deriv_res = calculate_l1_derivative_interval(p_interval, s_interval, tau_interval_rect, tp_result)
         
-        if !passed
-            println("!!! FAIL: P=$p_interval, S=$s_interval")
+        println("  P=$(p_interval) S=$(s_interval) τ=$(tau_interval_rect) => l'=$(deriv_res)")
+        
+        # Check if upper bound is less than threshold (strictly negative check)
+        if sup(deriv_res) < derivative_threshold
+            continue
+        else
+            # 6. Subdivision Fallback
+            should_subdivide = (sup(tau_interval_rect) - inf(tau_interval_rect)) > tau_subdivision_threshold
+            
+            if should_subdivide
+                println("--- Check failed on full tau interval. Subdividing... ---")
+                tau_subs = subdivide_tau_interval(tau_interval_rect, tau_subdivisions)
+                all_subs_passed = true
+                
+                for (k, sub_tau) in enumerate(tau_subs)
+                    deriv_sub = calculate_l1_derivative_interval(p_interval, s_interval, sub_tau, tp_result)
+                    
+                    println("      (Sub) P=$p_interval S=$s_interval τ[$k]=$sub_tau => l'=$deriv_sub")
+                    
+                    if !(sup(deriv_sub) < derivative_threshold)
+                        println("      !!! SUB-FAIL: P=$p_interval, S=$s_interval, τ_sub=$sub_tau")
+                        println("          l' = $deriv_sub (Wanted hi < $derivative_threshold)")
+                        all_subs_passed = false
+                        break
+                    end
+                end
+                
+                if all_subs_passed
+                    continue 
+                end
+            end
+            
+            println("!!! FAIL: P=$p_interval, S=$s_interval, τ=$tau_interval_rect")
+            println("    l' = $deriv_res (Wanted hi < $derivative_threshold)")
             p_interval_failed = true
             break
         end
@@ -601,7 +565,7 @@ end_time = time()
 println("="^40)
 println("Final Report on Inconclusive P-Intervals:")
 if isempty(failed_p_intervals)
-    println("All p-intervals verified h < -1e-9 successfully.")
+    println("All p-intervals verified (l^1)'_p < -1e-9 successfully.")
 else
     merged_failed = merge_intervals(failed_p_intervals)
     println("The following p-ranges failed the check:")

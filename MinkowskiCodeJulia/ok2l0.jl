@@ -220,138 +220,44 @@ end
 
 
 
-"""
-    calculate_h_interval(p_int, s_int, t_int)
 
-Calculates the interval for h = sum(h_1 to h_7).
-Uses factorization of singular t^(p-2) terms to prevent interval explosion near 0.
 """
-function calculate_h_interval(
+    calculate_l0_interval(p_int, s_int, t_int)
+
+Calculates the interval for l^(0) = Delta(p, sigma) - 1/2 * sigma_p.
+Delta(p, sigma) = (tau + sigma) * (1 + tau^p)^(-1/p) * (1 + sigma^p)^(-1/p)
+"""
+function calculate_l0_interval(
     p_int::Interval{<:Real},
     s_int::Interval{<:Real},
     t_int::Interval{<:Real}
 )
-    # Ensure strict positivity for logs/powers
-
+    # Ensure strict positivity for logs/powers where needed
+    # (Though here we just raise to powers, so mostly safe if base >= 0)
     
-    # --- 1. Basic Terms ---
     one_over_p = interval(1) / p_int
-    p_minus_1 = p_int - interval(1)
-    p_minus_2 = p_int - interval(2)
     
+    # 1. Calculate Delta(p, sigma)
+    # C1 = (1 + sigma^p)^(-1/p)
+    # C2 = (1 + tau^p)^(-1/p)
     val_1_sp = interval(1) + s_int^p_int
     val_1_tp = interval(1) + t_int^p_int
     
-    # C1, C2
     C1 = val_1_sp^(-one_over_p)
     C2 = val_1_tp^(-one_over_p)
     
-    # A, B
-    A = C2 - C1
-   
+    # Delta = (tau + sigma) * C2 * C1
+    delta_ps = (t_int + s_int) * C2 * C1
     
-    B = t_int * C2 + s_int * C1
-
+    # 2. Calculate sigma_p = (2^p - 1)^(1/p)
+    # Note: 2^p is strictly > 1 for p > 0, so base is positive
+    sigma_p = (interval(2)^p_int - interval(1))^one_over_p
     
-    # K_sigma, K_tau
-    K_sigma = val_1_sp^(-interval(1) - one_over_p)
-    K_tau   = val_1_tp^(-interval(1) - one_over_p)
+    # 3. l0 = Delta - 0.5 * sigma_p
+    l0 = delta_ps - interval(1//2) * sigma_p
     
-    # Powers
-    t_pow_pm1 = t_int^p_minus_1
-    t_pow_pm2 = t_int^p_minus_2 # This is the singular term t^(p-2)
-    
-    s_pow_pm1 = s_int^p_minus_1
-    s_pow_pm2 = s_int^p_minus_2
-    
-    A_pow_pm1 = A^p_minus_1
-    A_pow_pm2 = A^p_minus_2
-    
-    B_pow_pm1 = B^p_minus_1
-    B_pow_pm2 = B^p_minus_2
-    
-    # D1, D2
-    D1 = interval(1) - s_int * t_pow_pm1
-    D2 = interval(1) - t_int * s_pow_pm1
-    
-    # H1, H2
-    H1 = B_pow_pm1 + s_pow_pm1 * A_pow_pm1
-    H2 = B_pow_pm1 - t_pow_pm1 * A_pow_pm1
-    
-    # --- 2. Component Partial Derivatives ---
-    dA_dsigma = s_pow_pm1 * K_sigma
-    dA_dtau = -t_pow_pm1 * K_tau
-    dB_dsigma = K_sigma
-    dB_dtau = K_tau
-    
-    # --- 3. H-Partial Derivatives ---
-    # dH1/dsigma
-    term_H1_s_1 = B_pow_pm2 * dB_dsigma
-    term_H1_s_2 = s_pow_pm2 * A_pow_pm1
-    term_H1_s_3 = s_pow_pm1 * A_pow_pm2 * dA_dsigma
-    dH1_dsigma = p_minus_1 * (term_H1_s_1 + term_H1_s_2 + term_H1_s_3)
-    
-    # dH2/dsigma
-    term_H2_s_1 = B_pow_pm2 * dB_dsigma
-    term_H2_s_2 = t_pow_pm1 * A_pow_pm2 * dA_dsigma
-    dH2_dsigma = p_minus_1 * (term_H2_s_1 - term_H2_s_2)
-    
-    # dH1/dtau (All regular)
-    term_H1_t_1 = B_pow_pm2 * dB_dtau
-    term_H1_t_2 = s_pow_pm1 * A_pow_pm2 * dA_dtau
-    dH1_dtau = p_minus_1 * (term_H1_t_1 + term_H1_t_2)
-    
-    # dH2/dtau (Has singularity)
-    # The term with t^(p-2) is: - (p-1) * t^(p-2) * A^(p-1)
-    # The other terms are regular.
-    term_H2_t_regular_1 = B_pow_pm2 * dB_dtau
-    term_H2_t_regular_3 = t_pow_pm1 * A_pow_pm2 * dA_dtau
-    # Regular part of dH2/dtau
-    dH2_dtau_regular = p_minus_1 * (term_H2_t_regular_1 - term_H2_t_regular_3)
-    
-    # --- 4. T (dtau/dsigma) ---
-    if in_interval(0,H2)== true 
-        println("  Warning: H_2 interval contains zero. Skipping h calculation.")
-        return emptyinterval(Float64)
-    end
-    T = - (K_sigma / K_tau) * (H1 / H2)
-
-    
-    # --- 5. h_i Calculation (Grouped) ---
-    
-    # Regular Terms
-    h1 = -s_pow_pm1 * K_sigma * D1 * H1 - t_pow_pm1 * K_sigma * D2 * H1
-    h2 = -t_pow_pm1 * C1 * H1
-    h3 = p_minus_1 * t_int * s_pow_pm2 * C2 * H2
-    # h4 is singular, moved below
-    h5 = s_pow_pm1 * C2 * H2 * T
-    h6 = C1 * D1 * dH1_dsigma - C2 * D2 * dH2_dsigma
-    
-    # h7 split:
-    # h7 = (C1*D1*dH1/dt - C2*D2*dH2/dt) * T
-    # h7_regular part using dH2_dtau_regular
-    h7_regular = (C1 * D1 * dH1_dtau - C2 * D2 * dH2_dtau_regular) * T
-    
-    # Singular Terms Grouping:
-    # From h4: - (p-1) * sigma * t^(p-2) * C1 * H1 * T
-    # From h7: - C2 * D2 * [ - (p-1) * t^(p-2) * A^(p-1) ] * T
-    #        = + (p-1) * t^(p-2) * C2 * D2 * A^(p-1) * T
-    
-    # Combined Coefficient for t^(p-2):
-    # T * (p-1) * [ -sigma * C1 * H1 + C2 * D2 * A^(p-1) ]
-    
-    singular_bracket = -s_int * C1 * H1 + C2 * D2 * A_pow_pm1
-    singular_coeff = T * p_minus_1 * singular_bracket
-    
-    h_singular = singular_coeff * t_pow_pm2
-    
-    # --- 6. Total Sum ---
-    h_total = h1 + h2 + h3 + h5 + h6 + h7_regular + h_singular
-    
-    return h_total
+    return l0
 end
-
-
 
 """
     merge_intervals(intervals::Vector{Interval{Float64}})
@@ -412,14 +318,18 @@ function subdivide_tau_interval(tau_rect::Interval{Float64}, num_subdivisions::I
     return sub_intervals
 end
 
+"""
+    check_p_s_rectangle(p_int, s_int, ...)
 
-
+Encapsulates the logic for checking a single P, S rectangle.
+ Checks l0 > threshold.
+"""
 function check_p_s_rectangle(
     p_int::Interval{<:Real},
     s_int::Interval{<:Real},
     t_up_val::Real,              
     target_precision::Real,      
-    h_threshold::Real,           
+    l0_threshold::Real,           
     tau_subdivisions::Int,
     tau_subdivision_threshold::Real, 
     desc_prefix::String=""
@@ -433,17 +343,11 @@ function check_p_s_rectangle(
     end
     
     # 2. Standard Check (Always first)
-    h_res = calculate_h_interval(p_int, s_int, tau_interval_rect)
+    l0_res = calculate_l0_interval(p_int, s_int, tau_interval_rect)
+    println("$(desc_prefix)  P=$(p_int) S=$(s_int) τ=$(tau_interval_rect) => l0=$(l0_res)")
     
-    # --- NEW: Check if h calculation was skipped due to H2 containing 0 ---
-    if isempty_interval(h_res)
-        println("$(desc_prefix)!!! RIGOR FAIL: h calculation skipped (H2 singularity) for P=$p_int, S=$s_int")
-        return false # This will trigger p_interval_failed = true in the main loop
-    end
-    
-    println("$(desc_prefix)  P=$(p_int) S=$(s_int) τ=$(tau_interval_rect) => h=$(h_res)")
-    
-    if sup(h_res) < h_threshold
+    # CHECK: l0 > threshold (strictly positive check)
+    if inf(l0_res) > l0_threshold
         return true
     end
     
@@ -455,10 +359,10 @@ function check_p_s_rectangle(
         local tau_subs
         
         if is_zero_bound
-            println("$(desc_prefix)--- Check failed. Tau lower bound is 0. Subdividing into 2 parts... ---")
+            println("$(desc_prefix)--- Check failed. Tau lower bound is 0. Subdividing into 2 parts (isolating zero at 1e-9)... ---")
             split_point = 1 // 10^9
             tau_subs = [
-                interval(0, split_point),
+                interval(0.0, split_point),
                 interval(split_point, sup(tau_interval_rect))
             ]
         else
@@ -467,52 +371,47 @@ function check_p_s_rectangle(
         end
         
         for (k, sub_tau) in enumerate(tau_subs)
-            h_sub = calculate_h_interval(p_int, s_int, sub_tau)
+            l0_sub = calculate_l0_interval(p_int, s_int, sub_tau)
             
-            # --- NEW: Check sub-intervals for skipped h calculation ---
-            if isempty_interval(h_sub)
-                println("$(desc_prefix)      !!! RIGOR FAIL: h sub-calculation skipped (H2 singularity) for P=$p_int, S=$s_int")
-                return false
-            end
-
             sub_label = is_zero_bound ? "(Sub-Zero)" : "(Sub)"
-            println("$(desc_prefix)      $sub_label P=$p_int S=$s_int τ[$k]=$sub_tau => h=$h_sub")
+            println("$(desc_prefix)      $sub_label P=$p_int S=$s_int τ[$k]=$sub_tau => l0=$l0_sub")
             
-            if !(sup(h_sub) < h_threshold)
+            if !(inf(l0_sub) > l0_threshold)
                 println("$(desc_prefix)      !!! SUB-FAIL: P=$p_int, S=$s_int, τ_sub=$sub_tau")
+                println("$(desc_prefix)          l0 = $l0_sub (Wanted lo > $l0_threshold)")
                 return false
             end
         end
         return true
     else
         println("$(desc_prefix)!!! FAIL: P=$p_int, S=$s_int, τ=$tau_interval_rect")
+        println("$(desc_prefix)    l0 = $l0_res (Wanted lo > $l0_threshold)")
         return false
     end
 end
 
 
-
-
 # --- Main Execution ---
 
-const p_start = 20052 // 10000
+const p_start = 200741 // 100000
 const p_end = 203407 // 100000
 const p_step = 1 // 10000
 
-const sigma_lower_bound = 172 // 100
-const sigma_step = 1 // 10000
+const sigma_start_fixed = 1 // 1
+const sigma_end_fixed = 10016 // 10000
+const sigma_step = 1 // 100000
 
 
 const tp_guess = interval(0, 36//100) # Initial guess for t_p
 const target_precision = 1 // 10^9 # Iteration precision
-const h_threshold = - 1 // 10^9 # Inequality: h < -1e-9
+const l0_threshold = 1 // 10^9 # Inequality: l0 > 1e-9
 const tau_subdivisions = 40 #  Number of subdivisions for tau
 const tau_subdivision_threshold = 1 // 10^4 # Absolute width threshold
 
-println("Calculating bounds for h over new grid.")
+println("Calculating bounds for l^(0) over new grid.")
 println("  p range: [$p_start, $p_end] (descending)")
-println("  σ range: [$sigma_lower_bound, σ_p] (descending)")
-println("  Inequality to check: h < $h_threshold")
+println("  σ range: [$sigma_start_fixed, $sigma_end_fixed] (descending)")
+println("  Inequality to check: l0 > $l0_threshold")
 println("="^40)
 
 start_time = time()
@@ -528,6 +427,13 @@ if last(p_values_asc) < p_hi_val
 end
 p_values_desc = reverse(p_values_asc)
 
+# Determine Sigma Range (descending)
+sigma_values_asc = collect(sigma_start_fixed:sigma_step:sigma_end_fixed)
+if last(sigma_values_asc) < sigma_end_fixed
+    push!(sigma_values_asc, sigma_end_fixed)
+end
+sigma_values_desc = reverse(sigma_values_asc)
+
 for i in 1:(length(p_values_desc) - 1)
     p_hi = interval(p_values_desc[i])
     p_lo = interval(p_values_desc[i+1])
@@ -540,27 +446,12 @@ for i in 1:(length(p_values_desc) - 1)
         push!(failed_p_intervals, p_interval)
         continue 
     end
+
     t_up_val = sup(tp_result)
     
-    # 2. Determine Sigma Range for this P
-    sigma_p_interval = (interval(2)^p_interval - interval(1))^(interval(1)/p_interval)
-    sigma_start = sup(sigma_p_interval)
-    
-    # Construct Sigma Grid (descending to 1.7281)
-    sigma_values_desc = Float64[]
-    let 
-        curr = sigma_start
-        while curr > sigma_lower_bound + 1 // 10^9
-            push!(sigma_values_desc, curr)
-            curr -= sigma_step
-        end
-        push!(sigma_values_desc, sigma_lower_bound)
-    end
-    
     println("\nP-Interval: ", p_interval)
-    println("  σ_p bound for this p: ", sigma_p_interval)
     println("-"^100)
-    println("  P-Rect             S-Rect             τ-sub-interval     h Bound")
+    println("  P-Rect             S-Rect             τ-sub-interval     l0 Bound")
     println("-"^100)
 
     local p_interval_failed = false
@@ -568,20 +459,13 @@ for i in 1:(length(p_values_desc) - 1)
     # 3. Sigma Loop
     for j in 1:(length(sigma_values_desc) - 1)
         s_hi = sigma_values_desc[j]
-        if j == length(sigma_values_desc) - 1
-            # RIGOROUS: Use the exact Rational constant for the lower bound.
-            # IntervalArithmetic will round this down safely.
-            s_interval = interval(sigma_lower_bound, s_hi)
-        else
-            # STANDARD: Use the float grid points for intermediate steps
-            s_lo = sigma_values_desc[j+1]
-            s_interval = interval(s_lo, s_hi)
-        end
+        s_lo = sigma_values_desc[j+1]
+        s_interval = interval(s_lo, s_hi)
         
         # --- CHECK RECTANGLE ---
         passed = check_p_s_rectangle(
             p_interval, s_interval, t_up_val,
-            target_precision, h_threshold,
+            target_precision, l0_threshold,
             tau_subdivisions, tau_subdivision_threshold
         )
         
@@ -601,7 +485,7 @@ end_time = time()
 println("="^40)
 println("Final Report on Inconclusive P-Intervals:")
 if isempty(failed_p_intervals)
-    println("All p-intervals verified h < -1e-9 successfully.")
+    println("All p-intervals verified l0 > 1e-9 successfully.")
 else
     merged_failed = merge_intervals(failed_p_intervals)
     println("The following p-ranges failed the check:")
