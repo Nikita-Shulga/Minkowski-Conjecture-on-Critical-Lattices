@@ -5,7 +5,6 @@ The code in Julia that checks the needed inequalities in located in the folder c
 
 The following two links should contain the interactive plot of the function $\Delta(p,\sigma)$ as a function of $\sigma$. The value of $p$ is fixed and can be changed using a slider.
 
-https://www.wolframcloud.com/obj/nikitashulga/Published/MinkowskiConjectureDelta
 
 https://minkowski-conjecture-on-critical-lattices.streamlit.app/
 
