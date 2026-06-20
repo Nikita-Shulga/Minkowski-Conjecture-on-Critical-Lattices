@@ -1,6 +1,8 @@
 # Minkowski-Conjecture-on-Critical-Lattices
 This project is about computer-assisted proof of the Minkowski conjecture on critical lattices.
 
+The code in Julia that checks the needed inequalities in located in the folder called MinkowskiCodeJulia in this GitHub repository.
+
 The following two links should contain the interactive plot of the function $\Delta(p,\sigma)$ as a function of $\sigma$. The value of $p$ is fixed and can be changed using a slider.
 
 https://www.wolframcloud.com/obj/nikitashulga/Published/MinkowskiConjectureDelta
