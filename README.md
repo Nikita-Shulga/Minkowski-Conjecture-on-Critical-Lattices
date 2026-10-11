@@ -1,7 +1,7 @@
 # Minkowski-Conjecture-on-Critical-Lattices
-This project is about computer-assisted proof of the Minkowski conjecture on critical lattices.
+This project is about a computer-assisted proof of the Minkowski conjecture on critical lattices.
 
-The code in Julia that checks the needed inequalities in located in the folder called MinkowskiCodeJulia in this GitHub repository.
+The code in Julia that checks the needed inequalities is located in the folder called MinkowskiCodeJulia in this GitHub repository. The code was created at the time when AI-coding was still reasonably unreliable and certainly quite unreliable when working with the IntervalArithmetic Julia library (in mid 2025). It required many manual changes and rewrites to get it to work. The author did not check whether the current SOTA models (in late 2026, or later) 
 
 The following two links should contain the interactive plot of the function $\Delta(p,\sigma)$ as a function of $\sigma$. The value of $p$ is fixed and can be changed using a slider.
 
